@@ -1,0 +1,35 @@
+package: github.com/devtio/canary
+import:
+- package: github.com/devtio/canary
+  subpackages:
+  - server/kubernetes
+- package: github.com/gorilla/mux
+  version: ^1.6.2
+- package: github.com/kiali/kiali
+  subpackages:
+  - config
+  - log
+- package: k8s.io/api
+  subpackages:
+  - apps/v1beta1
+  - autoscaling/v1
+  - core/v1
+- package: k8s.io/apimachinery
+  subpackages:
+  - pkg/apis/meta/v1
+  - pkg/labels
+  - pkg/runtime
+  - pkg/runtime/schema
+  - pkg/runtime/serializer
+- package: k8s.io/client-go
+  version: ^7.0.0
+  subpackages:
+  - kubernetes
+  - plugin/pkg/client/auth/gcp
+  - rest
+  - tools/clientcmd
+testImport:
+- package: github.com/stretchr/testify
+  version: ^1.2.2
+  subpackages:
+  - assert

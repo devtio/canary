@@ -1,0 +1,188 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: canary
+  labels:
+    app: canary
+    version: ${VERSION_LABEL}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: canary
+  labels:
+    app: canary
+    version: ${VERSION_LABEL}
+spec:
+  type: NodePort
+  ports:
+  - name: tcp
+    protocol: TCP
+    port: 8080
+  selector:
+    app: canary
+    version: ${VERSION_LABEL}
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: canary
+  labels:
+    app: canary
+    version: ${VERSION_LABEL}
+spec:
+  backend:
+    serviceName: canary
+    servicePort: 8080
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: canary
+  labels:
+    app: canary
+    version: ${VERSION_LABEL}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: canary
+      version: ${VERSION_LABEL}
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      name: canary
+      labels:
+        app: canary
+        version: ${VERSION_LABEL}
+    spec:
+      serviceAccount: canary
+      containers:
+      - image: ${IMAGE_NAME}:${IMAGE_VERSION}
+        name: canary
+        command:
+        - "/opt/devtio/canary"
+        - "-config"
+        - "/canary-configuration/config.yaml"
+        - "-v"
+        - "${VERBOSE_MODE}"
+        env:
+        - name: ACTIVE_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        volumeMounts:
+        - name: canary-configuration
+          mountPath: "/canary-configuration"
+        livenessProbe:
+          failureThreshold: 20
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 3
+        readinessProbe:
+          failureThreshold: 20
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 3
+      volumes:
+      - name: canary-configuration
+        configMap:
+          name: canary
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: canary
+  labels:
+    app: canary
+    version: ${VERSION_LABEL}
+rules:
+- apiGroups: ["", "apps", "autoscaling"]
+  attributeRestrictions: null
+  resources:
+  - configmaps
+  - namespaces
+  - nodes
+  - pods
+  - projects
+  - services
+  - endpoints
+  - deployments
+  - horizontalpodautoscalers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups: ["config.istio.io"]
+  attributeRestrictions: null
+  resources:
+  - routerules
+  - destinationpolicies
+  - rules
+  - circonuses
+  - deniers
+  - fluentds
+  - kubernetesenvs
+  - listcheckers
+  - memquotas
+  - opas
+  - prometheuses
+  - rbacs
+  - servicecontrols
+  - solarwindses
+  - stackdrivers
+  - statsds
+  - stdios
+  - apikeys
+  - authorizations
+  - checknothings
+  - kuberneteses
+  - listentries
+  - logentries
+  - metrics
+  - quotas
+  - reportnothings
+  - servicecontrolreports
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups: ["networking.istio.io"]
+  attributeRestrictions: null
+  resources:
+  - virtualservices
+  - destinationrules
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: canary
+  labels:
+    app: canary
+    version: ${VERSION_LABEL}
+roleRef:
+  kind: ClusterRole
+  name: canary
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: canary
+  namespace: ${NAMESPACE}
