@@ -37,6 +37,7 @@ func main() {
 
 	r := mux.NewRouter()
 
+	// GET all namespaces
 	r.HandleFunc("/namespaces", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		client, err := istioclient.NewClient()
@@ -46,12 +47,12 @@ func main() {
 			return
 		}
 
-		fmt.Println("New client instantiated")
+		fmt.Println("Getting all namespaces")
 		if r.Method == "GET" {
 			// GET namespaces
 			namespaces, err2 := client.GetNamespaces()
 			if err2 != nil {
-				fmt.Errorf("Error occurred in getting namespaces", err)
+				fmt.Errorf("Error occurred in getting namespaces", err2)
 				return
 			}
 			fmt.Println("Namespaces retrieved: ", len(namespaces.Items))
@@ -60,6 +61,7 @@ func main() {
 
 	})
 
+	// GET virtual services in the default namespace
 	r.HandleFunc("/virtual-services", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		client, err := istioclient.NewClient()
@@ -69,12 +71,12 @@ func main() {
 			return
 		}
 
-		fmt.Println("New client instantiated")
+		fmt.Println("Getting virtual services in default namespace")
 		if r.Method == "GET" {
 			// GET virtual services
 			virtualServices, err2 := client.GetVirtualServices("default", "")
 			if err2 != nil {
-				fmt.Errorf("Error occurred in getting virtual services", err)
+				fmt.Errorf("Error occurred in getting virtual services", err2)
 				return
 			}
 			fmt.Println("Virtual services retrieved: ", len(virtualServices))
@@ -82,6 +84,7 @@ func main() {
 		}
 	})
 
+	// GET or POST virtual services by namespace
 	r.HandleFunc("/virtual-services/{namespace}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -93,13 +96,12 @@ func main() {
 			return
 		}
 
-		fmt.Println("New client instantiated")
 		fmt.Println("Getting Virtual Services for namespace: ", namespace)
 		if r.Method == "GET" {
 			// GET virtual services
 			virtualServices, err2 := client.GetVirtualServices(namespace, "")
 			if err2 != nil {
-				fmt.Errorf("Error occurred in getting virtual services", err)
+				fmt.Errorf("Error occurred in getting virtual services", err2)
 				return
 			}
 			fmt.Println("Virtual services retrieved: ", len(virtualServices))
@@ -143,6 +145,60 @@ func main() {
 
 	})
 
+	// get pods by namespace
+	r.HandleFunc("/pods/{namespace}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		namespace := vars["namespace"]
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		client, err := istioclient.NewClient()
+
+		if err != nil {
+			fmt.Errorf("Error occurred", err)
+			return
+		}
+
+		fmt.Println("Getting Pods for namespace: ", namespace)
+		if r.Method == "GET" {
+			// GET virtual services
+			pods, err2 := client.GetNamespacePods(namespace)
+			if err2 != nil {
+				fmt.Errorf("Error occurred in getting pods", err2)
+				return
+			}
+			fmt.Println("Pods retrieved: ", len(pods.Items))
+			json.NewEncoder(w).Encode(pods)
+		}
+	})
+
+	// get pods by release label and namespace
+	r.HandleFunc("/pods/{namespace}/{release}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		namespace := vars["namespace"]
+		release := vars["release"]
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		client, err := istioclient.NewClient()
+
+		if err != nil {
+			fmt.Errorf("Error occurred", err)
+			return
+		}
+
+		fmt.Println("Getting Pods for namespace: ", namespace, ", and release: ", release)
+		fmt.Println("method: ", r.Method)
+		if r.Method == "GET" {
+			// GET pods
+			fmt.Println("calling client", client)
+			pods, err2 := client.GetNamespacePodsByRelease(namespace, release)
+			if err2 != nil {
+				fmt.Errorf("Error occurred in getting pods", err2)
+				return
+			}
+			fmt.Println("Pods retrieved: ", len(pods.Items))
+			json.NewEncoder(w).Encode(pods)
+		}
+	})
+
+	// Health endpoint
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 

@@ -41,6 +41,7 @@ type IstioClientInterface interface {
 	GetServiceDetails(namespace string, serviceName string) (*ServiceDetails, error)
 	GetPods(namespace, labelSelector string) (*v1.PodList, error)
 	GetNamespacePods(namespace string) (*v1.PodList, error)
+	GetNamespacePodsByRelease(namespace string, release string) (*v1.PodList, error)
 	GetServicePods(namespace string, serviceName string, serviceVersion string) (*v1.PodList, error)
 	GetIstioDetails(namespace string, serviceName string) (*IstioDetails, error)
 	GetRouteRules(namespace string, serviceName string) ([]IstioObject, error)

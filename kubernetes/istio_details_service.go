@@ -6,6 +6,8 @@ import (
 
 	"github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/log"
+	"k8s.io/api/core/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // GetIstioDetails returns Istio details for a given namespace,
@@ -449,4 +451,19 @@ func FilterByHost(spec map[string]interface{}, hostName string) bool {
 		}
 	}
 	return false
+}
+
+// GetNamespacePodsByRelease returns the pods definitions for a given namespace that match a certain release-id
+// It returns an error on any problem.
+func (in *IstioClient) GetNamespacePodsByRelease(namespace string, release string) (*v1.PodList, error) {
+	fmt.Println("Called method GetNamespacePodsByRelease")
+	podList, err := in.k8s.CoreV1().Pods(namespace).List(meta_v1.ListOptions{LabelSelector: "release=" + release})
+	pods := podList.Items
+	if err == nil {
+		for _, pod := range pods {
+			fmt.Println("Pod found: ", pod.Name, ", release: ", pod.Labels["release"])
+		}
+	}
+
+	return podList, err
 }

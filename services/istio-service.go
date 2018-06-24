@@ -27,3 +27,9 @@ func (in *IstioClient) GetVirtualServices(namespace string, serviceName string) 
 	}
 	return virtualServices, nil
 }
+
+// GetNamespacePods returns the pods definitions for a given namespace
+// It returns an error on any problem.
+func (in *IstioClient) GetNamespacePods(namespace string) (*v1.PodList, error) {
+	return in.k8s.CoreV1().Pods(namespace).List(emptyListOptions)
+}
