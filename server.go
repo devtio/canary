@@ -11,6 +11,7 @@ import (
 	"time"
 
 	istioclient "github.com/devtio/canary/kubernetes"
+	"github.com/devtio/canary/services/models"
 	"github.com/gorilla/mux"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -22,10 +23,11 @@ type User struct {
 }
 
 type VirtualServiceDTO struct {
-	Name           string `json:name`
-	Release        string `json.release`
-	NewVersion     string `json.newVersion`
-	DefaultVersion string `json.defaultVersion`
+	Name        string `json:name`
+	Host        string `json.host`
+	Subset      string `json.subset`
+	ReleaseID   string `json.releaseId`
+	ReleaseName string `json.releaseName`
 }
 
 // Command line arguments
@@ -85,6 +87,14 @@ func main() {
 	})
 
 	// GET or POST virtual services by namespace
+	// GET request parameter is namespace
+	// For POST request, data should be in following format:
+	// {
+	// 	name: "a",
+	// 	host: "a",
+	// 	header: "x-client-id",
+	// 	release: "my-fancy-release"
+	// }
 	r.HandleFunc("/virtual-services/{namespace}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -116,10 +126,33 @@ func main() {
 			virtualService := (&istioclient.VirtualService{
 				ObjectMeta: meta_v1.ObjectMeta{
 					Name: vsd.Name,
+					Labels: map[string]string{
+						"releaseId":   vsd.ReleaseID,
+						"releaseName": vsd.ReleaseName,
+					},
 				},
 				Spec: map[string]interface{}{
 					"hosts": []interface{}{
-						"reviews",
+						vsd.Host,
+					},
+					"http": []map[string]interface{}{
+						{
+							"match": []map[string]interface{}{
+								{
+									"sourceLabels": map[string]string{
+										"release": vsd.ReleaseID,
+									},
+								},
+							},
+							"route": []map[string]interface{}{
+								{
+									"destination": map[string]string{
+										"host":   vsd.Host,
+										"subset": vsd.Subset,
+									},
+								},
+							},
+						},
 					},
 				},
 			}).DeepCopyIstioObject()
@@ -140,7 +173,7 @@ func main() {
 				fmt.Errorf("Error: ", rrErr)
 				return
 			}
-			fmt.Fprintf(w, "Virtual service created - Name: %s, Release: %s, New Version: %s, Default: %s, In namespace: %s", vsd.Name, vsd.Release, vsd.NewVersion, vsd.DefaultVersion, namespace)
+			fmt.Fprintf(w, "Virtual service created - Name: %s, Host: %s, Release ID: %s, Release Name: %s, In namespace: %s", vsd.Name, vsd.Host, vsd.ReleaseID, vsd.ReleaseName, namespace)
 		}
 
 	})
@@ -195,6 +228,112 @@ func main() {
 			}
 			fmt.Println("Pods retrieved: ", len(pods.Items))
 			json.NewEncoder(w).Encode(pods)
+		}
+	})
+
+	// GET releases
+	r.HandleFunc("/releases/{namespace}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		namespace := vars["namespace"]
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		client, err := istioclient.NewClient()
+
+		if err != nil {
+			fmt.Errorf("Error occurred", err)
+			return
+		}
+
+		fmt.Println("Firstly Releases for namespace: ", namespace)
+		fmt.Println("First calling GET virtual services")
+		if r.Method == "GET" {
+			// first get virtual services
+			virtualServices, err2 := client.GetVirtualServices(namespace, "")
+			if err2 != nil {
+				fmt.Errorf("Error occurred in getting virtual services", err2)
+				return
+			}
+			fmt.Println("Virtual services retrieved: ", len(virtualServices))
+			releases := []models.Release{}
+			// iterate over virtual services
+			for _, vs := range virtualServices {
+				// get metadata
+				meta := vs.GetObjectMeta()
+				labels := meta.GetLabels()
+				releaseID, releaseIDPresent := labels["releaseId"]
+				releaseName, releaseNamePresent := labels["releaseName"]
+
+				// get the obeject spec
+				spec := vs.GetSpec()
+				// very long nested structure to get the required fields from the virtual service spec
+				hosts := spec["hosts"].([]interface{})
+				https, httpsPresent := spec["http"].([]interface{})
+				// first get the release label
+				if httpsPresent {
+					for _, http := range https {
+						httpMap, isHTTPMap := http.(map[string]interface{})
+						if isHTTPMap {
+							matches, matchesPresent := httpMap["match"].([]interface{})
+							if matchesPresent {
+								for _, match := range matches {
+									matchMap, isMatchMap := match.(map[string]interface{})
+									if isMatchMap {
+										sourceLabels, sourceLabelsPresent := matchMap["sourceLabels"].(map[string]interface{})
+										if sourceLabelsPresent {
+											release, ok := sourceLabels["release"].(string)
+											if ok {
+												fmt.Println("Release label is: ", release)
+
+												// now get host and subset
+												routes, routesPresent := httpMap["route"].([]interface{})
+												if routesPresent {
+													for _, route := range routes {
+														routeMap, isRouteMap := route.(map[string]interface{})
+														if isRouteMap {
+															destination, destinationPresent := routeMap["destination"].(map[string]interface{})
+															if destinationPresent {
+																host, ok := destination["host"].(string)
+																if ok {
+																	fmt.Println("host label is: ", host)
+																}
+																subset, ok2 := destination["subset"].(string)
+																if ok2 {
+																	fmt.Println("subset label is: ", subset)
+																}
+
+																// create a Release model if host matches host
+																for _, _host := range hosts {
+																	if _host == host {
+																		// matches, go check release id and name
+																		if releaseIDPresent && releaseNamePresent {
+																			labels := []models.Labels{map[string]string{
+																				"app":     host,
+																				"version": subset,
+																			}}
+																			release := models.Release{
+																				ID:        releaseID,
+																				Name:      releaseName,
+																				PodLabels: labels,
+																			}
+																			releases = append(releases, release)
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				fmt.Println(releaseID, releaseName, releaseIDPresent, releaseNamePresent, hosts, releases)
+			}
+			json.NewEncoder(w).Encode(releases)
 		}
 	})
 
