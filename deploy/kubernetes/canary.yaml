@@ -14,26 +14,12 @@ metadata:
     app: canary
     version: ${VERSION_LABEL}
 spec:
-  type: NodePort
   ports:
-  - name: tcp
-    protocol: TCP
+  - name: http
     port: 8080
   selector:
     app: canary
     version: ${VERSION_LABEL}
----
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  name: canary
-  labels:
-    app: canary
-    version: ${VERSION_LABEL}
-spec:
-  backend:
-    serviceName: canary
-    servicePort: 8080
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
@@ -186,3 +172,69 @@ subjects:
 - kind: ServiceAccount
   name: canary
   namespace: ${NAMESPACE}
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: canary-gateway
+  labels:
+    app: canary
+    version: ${VERSION_LABEL}  
+spec:
+  selector:
+    istio: ingressgateway # use istio default controller
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "*"
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: canary
+  labels:
+    app: canary
+    version: ${VERSION_LABEL}
+spec:
+  hosts:
+  - "canary.192.168.99.100.nip.io:31380"
+  gateways:
+  - canary-gateway
+  http:
+  - match:
+    - uri:
+        exact: /health
+    - uri:
+        prefix: /virtual-services
+    route:
+    - destination:
+        host: canary
+        port:
+          number: 8080
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: canary-fake
+  labels:
+    app: canary
+    version: ${VERSION_LABEL}
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - canary-gateway
+  http:
+  - match:
+    - uri:
+        exact: /health
+    - uri:
+        prefix: /virtual-services
+    route:
+    - destination:
+        host: canary-broken
+        port:
+          number: 8080

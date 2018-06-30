@@ -67,7 +67,7 @@ VERBOSE_MODE ?= 4
 
 # Declares the namespace where the objects are to be deployed.
 # For OpenShift, this is the name of the project.
-NAMESPACE ?= canary
+NAMESPACE ?= default
 
 # Environment variables set when running the Go compiler.
 GO_BUILD_ENVVARS = \
@@ -116,7 +116,7 @@ k8s-deploy: k8s-undeploy
 
 k8s-undeploy:
 	@echo Undeploying from Kubernetes namespace ${NAMESPACE}
-	kubectl delete all,secrets,sa,configmaps,deployments,ingresses,clusterroles,clusterrolebindings,routerules --selector=app=canary --selector=version=${VERSION_LABEL} -n ${NAMESPACE}
+	kubectl delete all,secrets,sa,configmaps,deployments,ingresses,clusterroles,clusterrolebindings,routerules,virtualservices,gateways --selector=app=canary --selector=version=${VERSION_LABEL} -n ${NAMESPACE}
 
 
 #

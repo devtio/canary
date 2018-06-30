@@ -118,62 +118,16 @@ func main() {
 			json.NewEncoder(w).Encode(virtualServices)
 		} else if r.Method == "POST" {
 			// POST new virtual service
-			result := "Error"
 			var vsd VirtualServiceDTO
 			json.NewDecoder(r.Body).Decode(&vsd)
 			fmt.Println("Attempting to create virtual service")
 
-			virtualService := (&istioclient.VirtualService{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name: vsd.Name,
-					Labels: map[string]string{
-						"releaseId":   vsd.ReleaseID,
-						"releaseName": vsd.ReleaseName,
-					},
-				},
-				Spec: map[string]interface{}{
-					"hosts": []interface{}{
-						vsd.Host,
-					},
-					"http": []map[string]interface{}{
-						{
-							"match": []map[string]interface{}{
-								{
-									"sourceLabels": map[string]string{
-										"release": vsd.ReleaseID,
-									},
-								},
-							},
-							"route": []map[string]interface{}{
-								{
-									"destination": map[string]string{
-										"host":   vsd.Host,
-										"subset": vsd.Subset,
-									},
-								},
-							},
-						},
-					},
-				},
-			}).DeepCopyIstioObject()
-
-			var rrErr error
-			var wg sync.WaitGroup
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				if _, rrErr := client.CreateVirtualService(namespace, virtualService); rrErr == nil {
-					result = "Success"
-					fmt.Errorf("Error: ", rrErr)
-				}
-			}()
-			wg.Wait()
-			fmt.Errorf("Error: ", rrErr)
-			if rrErr != nil {
-				fmt.Errorf("Error: ", rrErr)
-				return
+			res, err := createVirtualService(*client, vsd, namespace)
+			if err != nil {
+				fmt.Fprintf(w, "Error: ", err.Error())
+			} else {
+				fmt.Fprintf(w, res)
 			}
-			fmt.Fprintf(w, "Virtual service created - Name: %s, Host: %s, Release ID: %s, Release Name: %s, In namespace: %s", vsd.Name, vsd.Host, vsd.ReleaseID, vsd.ReleaseName, namespace)
 		}
 
 	})
@@ -231,7 +185,7 @@ func main() {
 		}
 	})
 
-	// GET releases
+	// endpoint to GET and POST releases
 	r.HandleFunc("/releases/{namespace}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -243,10 +197,33 @@ func main() {
 			return
 		}
 
-		fmt.Println("Firstly Releases for namespace: ", namespace)
-		fmt.Println("First calling GET virtual services")
-		if r.Method == "GET" {
+		if r.Method == "POST" {
+			// create a Virtual Service from the release
+			fmt.Println("Decoding request body into Release Object")
+			var release models.Release
+			json.NewDecoder(r.Body).Decode(&release)
+			fmt.Println("Decoded release: ", release)
+
+			for _, label := range release.PodLabels {
+				vsd := VirtualServiceDTO{
+					Name:        release.Name + "-" + label["app"],
+					ReleaseName: release.Name,
+					ReleaseID:   release.ID,
+					Host:        label["app"],
+					Subset:      label["version"],
+				}
+				fmt.Println("Attempting to create virtual service ", vsd, namespace)
+				res, err := createVirtualService(*client, vsd, namespace)
+				if err != nil {
+					fmt.Fprintf(w, "Error: ", err.Error())
+				} else {
+					fmt.Fprintf(w, res)
+				}
+			}
+
+		} else if r.Method == "GET" {
 			// first get virtual services
+			fmt.Println("Calling GET virtual services")
 			virtualServices, err2 := client.GetVirtualServices(namespace, "")
 			if err2 != nil {
 				fmt.Errorf("Error occurred in getting virtual services", err2)
@@ -309,12 +286,23 @@ func main() {
 																				"app":     host,
 																				"version": subset,
 																			}}
-																			release := models.Release{
-																				ID:        releaseID,
-																				Name:      releaseName,
-																				PodLabels: labels,
+																			existing := false
+																			// add label to existing release if present
+																			for i := range releases {
+																				if releases[i].ID == releaseID {
+																					releases[i].PodLabels = append(releases[i].PodLabels, labels[0])
+																					existing = true
+																				}
 																			}
-																			releases = append(releases, release)
+																			// else add to a new release
+																			if !existing {
+																				release := models.Release{
+																					ID:        releaseID,
+																					Name:      releaseName,
+																					PodLabels: labels,
+																				}
+																				releases = append(releases, release)
+																			}
 																		}
 																	}
 																}
@@ -331,7 +319,7 @@ func main() {
 						}
 					}
 				}
-				fmt.Println(releaseID, releaseName, releaseIDPresent, releaseNamePresent, hosts, releases)
+
 			}
 			json.NewEncoder(w).Encode(releases)
 		}
@@ -361,4 +349,59 @@ func main() {
 	}
 
 	log.Fatal(srv.ListenAndServe())
+}
+
+func createVirtualService(client istioclient.IstioClient, vsd VirtualServiceDTO, namespace string) (string, error) {
+	result := "Error"
+	virtualService := (&istioclient.VirtualService{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name: vsd.Name,
+			Labels: map[string]string{
+				"releaseId":   vsd.ReleaseID,
+				"releaseName": vsd.ReleaseName,
+			},
+		},
+		Spec: map[string]interface{}{
+			"hosts": []interface{}{
+				vsd.Host,
+			},
+			"http": []map[string]interface{}{
+				{
+					"match": []map[string]interface{}{
+						{
+							"sourceLabels": map[string]string{
+								"release": vsd.ReleaseID,
+							},
+						},
+					},
+					"route": []map[string]interface{}{
+						{
+							"destination": map[string]string{
+								"host":   vsd.Host,
+								"subset": vsd.Subset,
+							},
+						},
+					},
+				},
+			},
+		},
+	}).DeepCopyIstioObject()
+
+	var rrErr error
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if _, rrErr := client.CreateVirtualService(namespace, virtualService); rrErr == nil {
+			result = "Success"
+			fmt.Errorf("Error: ", rrErr)
+		}
+	}()
+	wg.Wait()
+	fmt.Errorf("Error: ", rrErr)
+	if rrErr != nil {
+		fmt.Errorf("Error: ", rrErr)
+	}
+	fmt.Println("Virtual service created: ", vsd.Name, vsd.Host, vsd.ReleaseID, vsd.ReleaseName, namespace)
+	return result, rrErr
 }

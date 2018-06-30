@@ -14,7 +14,7 @@ It is based off a JSON example web service https://gowebexamples.com/json/
 - Run istio and bookinfo tutorial for testing if required
 - Carry out the create route rule example of the bookinfo tutorial if required
 - `curl -s http://localhost:8080/virtual-services` to test the GET virtual services method
-- Test creating a virtual service that would represent the Release State for Canary `curl -s -XPOST -d'{"name":"dummy-4","releaseId":"my-fancy-release", "releaseName":"MyFancyRelease", "host":"b", "subset": "v1"}' http://localhost:8080/virtual-services/dumbo` (this represents v1 of service b being used for my-fancy-release)
+- Test creating a virtual service that would represent the Release State for Canary `curl -s -XPOST -d'{"id":"release-fancy-1","name":"fancyrelease1", "podLabels":[{"app": "a", "version":"v1"},{"app": "b", "version": "v2"}]}' http://localhost:8080/releases/dumbo` (this represents v1 of service a and v2 of service b being used for release-fancy-1)
 - Test retrieving current state Releases `curl -s http://localhost:8080/releases/dumbo`
 
 ### Build and deploy image
