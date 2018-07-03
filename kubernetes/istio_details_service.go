@@ -453,6 +453,38 @@ func FilterByHost(spec map[string]interface{}, hostName string) bool {
 	return false
 }
 
+// GetGateways return all Gateways for a given namespace.
+// It returns an error on any problem.
+func (in *IstioClient) GetGateways(namespace string) ([]IstioObject, error) {
+	result, err := in.istioNetworkingApi.Get().Namespace(namespace).Resource(gateways).Do().Get()
+	if err != nil {
+		return nil, err
+	}
+	gatewayList, ok := result.(*GatewayList)
+	if !ok {
+		return nil, fmt.Errorf("%s doesn't return a Gateway list", namespace)
+	}
+
+	gateways := make([]IstioObject, 0)
+	for _, gateway := range gatewayList.GetItems() {
+		gateways = append(gateways, gateway.DeepCopyIstioObject())
+	}
+	return gateways, nil
+}
+
+func (in *IstioClient) GetGateway(namespace string, gateway string) (IstioObject, error) {
+	result, err := in.istioNetworkingApi.Get().Namespace(namespace).Resource(gateways).SubResource(gateway).Do().Get()
+	if err != nil {
+		return nil, err
+	}
+
+	gatewayObject, ok := result.(*Gateway)
+	if !ok {
+		return nil, fmt.Errorf("%s/%s doesn't return a Gateway object", namespace, gateway)
+	}
+	return gatewayObject.DeepCopyIstioObject(), nil
+}
+
 // GetNamespacePodsByRelease returns the pods definitions for a given namespace that match a certain release-id
 // It returns an error on any problem.
 func (in *IstioClient) GetNamespacePodsByRelease(namespace string, release string) (*v1.PodList, error) {

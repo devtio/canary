@@ -30,6 +30,16 @@ var (
 		collection   IstioObjectList
 		groupVersion *schema.GroupVersion
 	}{
+		gatewayLabel: {
+			object: &Gateway{
+				TypeMeta: meta_v1.TypeMeta{
+					Kind:       gatewayType,
+					APIVersion: istioNetworkingGroupVersion.Group + "/" + istioNetworkingGroupVersion.Version,
+				},
+			},
+			collection:   &GatewayList{},
+			groupVersion: &istioNetworkingGroupVersion,
+		},
 		routeRuleLabel: {
 			object: &RouteRule{
 				TypeMeta: meta_v1.TypeMeta{
@@ -68,6 +78,16 @@ var (
 				},
 			},
 			collection:   &DestinationRuleList{},
+			groupVersion: &istioNetworkingGroupVersion,
+		},
+		serviceentryLabel: {
+			object: &ServiceEntry{
+				TypeMeta: meta_v1.TypeMeta{
+					Kind:       serviceentryType,
+					APIVersion: istioNetworkingGroupVersion.Group + "/" + istioNetworkingGroupVersion.Version,
+				},
+			},
+			collection:   &ServiceEntryList{},
 			groupVersion: &istioNetworkingGroupVersion,
 		},
 		ruleLabel: {
@@ -320,6 +340,27 @@ var (
 				},
 			},
 			collection:   &servicecontrolreportList{},
+			groupVersion: &istioConfigGroupVersion,
+		},
+		// QuotaSpec and QuotaSpecBinding
+		quotaspecLabel: {
+			object: &QuotaSpec{
+				TypeMeta: meta_v1.TypeMeta{
+					Kind:       quotaspecType,
+					APIVersion: istioConfigGroupVersion.Group + "/" + istioConfigGroupVersion.Version,
+				},
+			},
+			collection:   &QuotaSpecList{},
+			groupVersion: &istioConfigGroupVersion,
+		},
+		quotaspecbindingLabel: {
+			object: &QuotaSpecBinding{
+				TypeMeta: meta_v1.TypeMeta{
+					Kind:       quotaspecbindingType,
+					APIVersion: istioConfigGroupVersion.Group + "/" + istioConfigGroupVersion.Version,
+				},
+			},
+			collection:   &QuotaSpecBindingList{},
 			groupVersion: &istioConfigGroupVersion,
 		},
 	}

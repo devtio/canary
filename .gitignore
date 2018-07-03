@@ -34,3 +34,6 @@ vendor/
 
 # Configuration files for the hack scripts
 hack/*.local.sh
+
+.DS_Store
+*.DS_Store

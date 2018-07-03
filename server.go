@@ -129,8 +129,33 @@ func main() {
 				fmt.Fprintf(w, res)
 			}
 		}
-
 	})
+
+	// GET istio gateways by namespace
+	r.HandleFunc("/gateways/{namespace}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		namespace := vars["namespace"]
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		client, err := istioclient.NewClient()
+
+		if err != nil {
+			fmt.Println("Error occurred", err)
+			return
+		}
+
+		if r.Method == "GET" {
+			fmt.Println("Getting Gateways for namespace: ", namespace)
+			gateways, err2 := client.GetGateways(namespace)
+			if err2 != nil {
+				fmt.Println("Error occurred in getting gateways", err2)
+				return
+			}
+			fmt.Println("Gateways retrieved: ", len(gateways))
+			json.NewEncoder(w).Encode(gateways)
+		}
+	})
+
+	// TODO: GET and POST traffic segments to map traffic segment objects with Gateway + VS combo
 
 	// get pods by namespace
 	r.HandleFunc("/pods/{namespace}", func(w http.ResponseWriter, r *http.Request) {

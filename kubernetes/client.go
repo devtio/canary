@@ -44,6 +44,10 @@ type IstioClientInterface interface {
 	GetNamespacePodsByRelease(namespace string, release string) (*v1.PodList, error)
 	GetServicePods(namespace string, serviceName string, serviceVersion string) (*v1.PodList, error)
 	GetIstioDetails(namespace string, serviceName string) (*IstioDetails, error)
+	GetGateways(namespace string) ([]IstioObject, error)
+	GetGateway(namespace string, gateway string) (IstioObject, error)
+	GetServiceEntries(namespace string) ([]IstioObject, error)
+	GetServiceEntry(namespace string, serviceEntryName string) (IstioObject, error)
 	GetRouteRules(namespace string, serviceName string) ([]IstioObject, error)
 	GetRouteRule(namespace string, routerule string) (IstioObject, error)
 	GetDestinationPolicies(namespace string, serviceName string) ([]IstioObject, error)
@@ -55,6 +59,10 @@ type IstioClientInterface interface {
 	GetDestinationRule(namespace string, destinationrule string) (IstioObject, error)
 	GetIstioRules(namespace string) (*IstioRules, error)
 	GetIstioRuleDetails(namespace string, istiorule string) (*IstioRuleDetails, error)
+	GetQuotaSpecs(namespace string) ([]IstioObject, error)
+	GetQuotaSpec(namespace string, quotaSpecName string) (IstioObject, error)
+	GetQuotaSpecBindings(namespace string) ([]IstioObject, error)
+	GetQuotaSpecBinding(namespace string, quotaSpecBindingName string) (IstioObject, error)
 }
 
 // IstioClient is the client struct for Kubernetes and Istio APIs
