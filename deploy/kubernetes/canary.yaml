@@ -16,7 +16,7 @@ metadata:
 spec:
   ports:
   - name: http
-    port: 8080
+    port: 8090
   selector:
     app: canary
     version: ${VERSION_LABEL}
@@ -64,11 +64,14 @@ spec:
         volumeMounts:
         - name: canary-configuration
           mountPath: "/canary-configuration"
+        ports:
+        - containerPort: 8090
+          protocol: TCP
         livenessProbe:
           failureThreshold: 20
           httpGet:
             path: /health
-            port: 8080
+            port: 8090
             scheme: HTTP
           initialDelaySeconds: 10
           periodSeconds: 10
@@ -78,7 +81,7 @@ spec:
           failureThreshold: 20
           httpGet:
             path: /health
-            port: 8080
+            port: 8090
             scheme: HTTP
           initialDelaySeconds: 10
           periodSeconds: 10
@@ -177,9 +180,10 @@ apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   name: canary-gateway
+  namespace: canary
   labels:
     app: canary
-    version: ${VERSION_LABEL}  
+    version: ${VERSION_LABEL}
 spec:
   selector:
     istio: ingressgateway # use istio default controller
@@ -195,46 +199,23 @@ apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   name: canary
+  namespace: canary
   labels:
     app: canary
     version: ${VERSION_LABEL}
 spec:
   hosts:
-  - "canary.192.168.99.100.nip.io:31380"
+  - canary.${GATEWAY_URL}.nip.io
   gateways:
   - canary-gateway
   http:
   - match:
     - uri:
-        exact: /health
-    - uri:
-        prefix: /virtual-services
+        prefix: /
     route:
     - destination:
         host: canary
         port:
-          number: 8080
----
-apiVersion: networking.istio.io/v1alpha3
-kind: VirtualService
-metadata:
-  name: canary-fake
-  labels:
-    app: canary
-    version: ${VERSION_LABEL}
-spec:
-  hosts:
-  - "*"
-  gateways:
-  - canary-gateway
-  http:
-  - match:
-    - uri:
-        exact: /health
-    - uri:
-        prefix: /virtual-services
-    route:
-    - destination:
-        host: canary-broken
-        port:
-          number: 8080
+          number: 8090
+
+

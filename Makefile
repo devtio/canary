@@ -67,7 +67,7 @@ VERBOSE_MODE ?= 4
 
 # Declares the namespace where the objects are to be deployed.
 # For OpenShift, this is the name of the project.
-NAMESPACE ?= default
+NAMESPACE ?= canary
 
 # Environment variables set when running the Go compiler.
 GO_BUILD_ENVVARS = \
@@ -108,11 +108,18 @@ minikube-docker: .prepare-minikube .prepare-docker-image-files
 	@eval $$(minikube docker-env) ; \
 	docker build -t ${DOCKER_TAG} _output/docker
 
+gcr-docker: .prepare-docker-image-files
+	@echo Building docker image into minikube docker daemon...
+	docker build -t ${DOCKER_TAG} _output/docker
+	docker tag ${DOCKER_TAG} ${GCR_ID}
+	docker push ${GCR_ID}
+
 k8s-deploy: k8s-undeploy
 	@if ! which envsubst > /dev/null 2>&1; then echo "You are missing 'envsubst'. Please install it and retry. If on MacOS, you can get this by installing the gettext package"; exit 1; fi
 	@echo Deploying to Kubernetes namespace ${NAMESPACE}
 	cat deploy/kubernetes/canary-configmap.yaml | VERSION_LABEL=${VERSION_LABEL} NAME_SUFFIX=${NAME_SUFFIX} envsubst | kubectl create -n ${NAMESPACE} -f -
-	cat deploy/kubernetes/canary.yaml | IMAGE_NAME=${DOCKER_NAME} IMAGE_VERSION=${DOCKER_VERSION} NAMESPACE=${NAMESPACE} VERSION_LABEL=${VERSION_LABEL} NAME_SUFFIX=${NAME_SUFFIX} VERBOSE_MODE=${VERBOSE_MODE} envsubst | kubectl create -n ${NAMESPACE} -f -
+	kubectl label namespace ${NAMESPACE} istio-injection=enabled --overwrite	
+	cat deploy/kubernetes/canary.yaml | GCR_ID=${GCR_ID} GATEWAY_URL=${GATEWAY_URL} IMAGE_NAME=${GCR_ID} IMAGE_VERSION=latest NAMESPACE=${NAMESPACE} VERSION_LABEL=${VERSION_LABEL} NAME_SUFFIX=${NAME_SUFFIX} VERBOSE_MODE=${VERBOSE_MODE} envsubst | kubectl create -n ${NAMESPACE} -f -
 
 k8s-undeploy:
 	@echo Undeploying from Kubernetes namespace ${NAMESPACE}

@@ -7,7 +7,7 @@ ENV CANARY_HOME=/opt/devtio \
 
 COPY canary $CANARY_HOME/
 
-EXPOSE 8080
+EXPOSE 8090
 
 ENTRYPOINT ["/opt/devtio/canary"]
 
