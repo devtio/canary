@@ -11,5 +11,7 @@ type HttpMatch struct {
 }
 
 type StringMatch struct {
-	Regex string `json:"regex"`
+	Regex  string `json:"regex,omitempty"`
+	Exact  string `json:"exact,omitempty"`
+	Prefix string `json:"prefix,omitempty"`
 }
