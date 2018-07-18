@@ -225,117 +225,141 @@ func main() {
 		if r.Method == "POST" {
 			// create a Virtual Service from the release
 			fmt.Println("Decoding request body into Release Object")
-			var release models.Release
-			json.NewDecoder(r.Body).Decode(&release)
-			fmt.Println("Decoded release: ", release)
+			// var release models.Release
+			// json.NewDecoder(r.Body).Decode(&release)
+			// fmt.Println("Decoded release: ", release)
 
-			for _, label := range release.PodLabels {
-				vsd := VirtualServiceDTO{
-					Name:        release.Name + "-" + label["app"],
-					ReleaseName: release.Name,
-					ReleaseID:   release.ID,
-					Host:        label["app"],
-					Subset:      label["version"],
-				}
-				fmt.Println("Attempting to create virtual service ", vsd, namespace)
-				res, err := createVirtualService(*client, vsd, namespace)
-				if err != nil {
-					fmt.Fprintf(w, "Error: ", err.Error())
-				} else {
-					fmt.Fprintf(w, res)
-				}
-			}
+			// for _, label := range release.PodLabels {
+			// 	vsd := VirtualServiceDTO{
+			// 		Name:        release.Name + "-" + label["app"],
+			// 		ReleaseName: release.Name,
+			// 		ReleaseID:   release.ID,
+			// 		Host:        label["app"],
+			// 		Subset:      label["version"],
+			// 	}
+			// 	fmt.Println("Attempting to create virtual service ", vsd, namespace)
+			// 	res, err := createVirtualService(*client, vsd, namespace)
+			// 	if err != nil {
+			// 		fmt.Fprintf(w, "Error: ", err.Error())
+			// 	} else {
+			// 		fmt.Fprintf(w, res)
+			// 	}
+			// }
 
 		} else if r.Method == "GET" {
 			// first get virtual services
-			fmt.Println("Calling GET virtual services")
+			fmt.Println("Calling GET virtual services for namespace ", namespace)
 			virtualServices, err2 := client.GetVirtualServices(namespace, "")
 			if err2 != nil {
-				fmt.Errorf("Error occurred in getting virtual services", err2)
+				fmt.Println("Error occurred in getting virtual services", err2)
 				return
 			}
 			fmt.Println("Virtual services retrieved: ", len(virtualServices))
-			releases := []models.Release{}
+			releases := map[string]models.Release{}
 			// iterate over virtual services
 			for _, vs := range virtualServices {
 				// get metadata
 				meta := vs.GetObjectMeta()
 				labels := meta.GetLabels()
-				releaseID, releaseIDPresent := labels["releaseId"]
-				releaseName, releaseNamePresent := labels["releaseName"]
+
+				isManagedByDevtio, isManagedByDevtioPresent := labels["io.devtio.canary/managed"]
+
+				if !isManagedByDevtioPresent || isManagedByDevtio == "false" {
+					fmt.Println("VirtualService is not managed by devtio, skipping...")
+					continue
+				}
 
 				// get the obeject spec
 				spec := vs.GetSpec()
 				// very long nested structure to get the required fields from the virtual service spec
 				hosts := spec["hosts"].([]interface{})
+				var hostsStringArray []string
+				for _, host := range hosts {
+					hostsStringArray = append(hostsStringArray, host.(string))
+				}
 				https, httpsPresent := spec["http"].([]interface{})
 				// first get the release label
 				if httpsPresent {
 					for _, http := range https {
 						httpMap, isHTTPMap := http.(map[string]interface{})
 						if isHTTPMap {
+							// get top-level hosts
+							appendHeaders, appendHeadersPresent := httpMap["appendHeaders"].(map[string]interface{})
+							if appendHeadersPresent {
+								devtioHeader, devtioHeaderPresent := appendHeaders["devtio"].(string)
+								if devtioHeaderPresent {
+									fmt.Println("Top level hosts of release: ", devtioHeader, " are: ", hosts)
+									// add to release map to return
+									release, releasePresent := releases[devtioHeader]
+									fmt.Println(releasePresent)
+									if releasePresent {
+										release.Gateway.Hosts = hostsStringArray
+									} else {
+										release = models.Release{
+											ID:   devtioHeader,
+											Name: devtioHeader,
+											Gateway: models.Gateway{
+												Hosts: hostsStringArray,
+											},
+										}
+									}
+									releases[devtioHeader] = release
+								}
+							}
+
+							// read route section
+							app, version := "", ""
+							routes, routesPresent := httpMap["route"].([]interface{})
+							if routesPresent {
+								for _, route := range routes {
+									routeMap, isRouteMap := route.(map[string]interface{})
+									if isRouteMap {
+										destination, destinationPresent := routeMap["destination"].(map[string]interface{})
+										if destinationPresent {
+											app, _ = destination["host"].(string)
+											version, _ = destination["subset"].(string)
+										}
+									}
+								}
+							}
+
+							// read matches section
 							matches, matchesPresent := httpMap["match"].([]interface{})
 							if matchesPresent {
 								for _, match := range matches {
 									matchMap, isMatchMap := match.(map[string]interface{})
 									if isMatchMap {
-										sourceLabels, sourceLabelsPresent := matchMap["sourceLabels"].(map[string]interface{})
-										if sourceLabelsPresent {
-											release, ok := sourceLabels["release"].(string)
-											if ok {
-												fmt.Println("Release label is: ", release)
+										headers, headersPresent := matchMap["headers"].(map[string]interface{})
+										if headersPresent {
+											devtio, devtioPresent := headers["devtio"].(map[string]interface{})
+											if devtioPresent {
+												headerExact, headerExactPresent := devtio["exact"].(string)
+												if headerExactPresent {
+													fmt.Println("Found release, id: ", headerExact)
+													fmt.Println("Hosts: ", hosts)
+													// get labels
+													fmt.Println("app: ", app, ", version: ", version)
+													// add to release map to return
+													release, releasePresent := releases[headerExact]
+													app := models.App{
+														Hosts: hostsStringArray,
+														Labels: models.Labels{
+															"app":     app,
+															"version": version,
+														},
+													}
 
-												// now get host and subset
-												routes, routesPresent := httpMap["route"].([]interface{})
-												if routesPresent {
-													for _, route := range routes {
-														routeMap, isRouteMap := route.(map[string]interface{})
-														if isRouteMap {
-															destination, destinationPresent := routeMap["destination"].(map[string]interface{})
-															if destinationPresent {
-																host, ok := destination["host"].(string)
-																if ok {
-																	fmt.Println("host label is: ", host)
-																}
-																subset, ok2 := destination["subset"].(string)
-																if ok2 {
-																	fmt.Println("subset label is: ", subset)
-																}
-
-																// create a Release model if host matches host
-																for _, _host := range hosts {
-																	if _host == host {
-																		// matches, go check release id and name
-																		if releaseIDPresent && releaseNamePresent {
-																			labels := []models.Labels{map[string]string{
-																				"app":     host,
-																				"version": subset,
-																			}}
-																			existing := false
-																			// add label to existing release if present
-																			for i := range releases {
-																				if releases[i].ID == releaseID {
-																					releases[i].PodLabels = append(releases[i].PodLabels, labels[0])
-																					existing = true
-																				}
-																			}
-																			// else add to a new release
-																			if !existing {
-																				release := models.Release{
-																					ID:        releaseID,
-																					Name:      releaseName,
-																					PodLabels: labels,
-																				}
-																				releases = append(releases, release)
-																			}
-																		}
-																	}
-																}
-															}
+													if releasePresent {
+														release.Apps = append(release.Apps, app)
+													} else {
+														release = models.Release{
+															ID:   headerExact,
+															Name: headerExact,
+															Apps: []models.App{app},
 														}
 													}
+													releases[headerExact] = release
 												}
-
 											}
 										}
 									}

@@ -15,12 +15,12 @@ It is based off a JSON example web service https://gowebexamples.com/json/
 - `glide install --strip-vendor`
 
 ### Testing locally ###
-- `go run server.go`
-- Run istio and bookinfo tutorial for testing if required
-- Carry out the create route rule example of the bookinfo tutorial if required
-- `curl -s http://localhost:8080/virtual-services` to test the GET virtual services method
-- Test creating a virtual service that would represent the Release State for Canary `curl -s -XPOST -d'{"id":"release-fancy-1","name":"fancyrelease1", "podLabels":[{"app": "a", "version":"v1"},{"app": "b", "version": "v2"}]}' http://localhost:8080/releases/dumbo` (this represents v1 of service a and v2 of service b being used for release-fancy-1)
-- Test retrieving current state Releases `curl -s http://localhost:8080/releases/dumbo`
+- Ensure istio (>= v0.8) is running on the cluster
+- Give permissions `kubectl create clusterrolebinding cluster-system-anonymous --clusterrole=cluster-admin --user=system:anonymous`
+- Run the [devtio/dummy project](https://github.com/devtio/dummy) to create the dummy namespace with example resources i.e. `kubectl apply -f samples/dummy/setup.yaml`
+- Run canary locally `go run server.go`
+- `curl -s http://localhost:8080/releases/dummy` to test the GET releases method
+- The output should look something like this: `{"release1":{"id":"release1","name":"release1","gateway":{"hosts":["dummy.xx.xxx.xxx.xxx.nip.io"]},"apps":[{"hosts":["a"],"labels":{"app":"a","version":"v2"}},{"hosts":["b"],"labels":{"app":"b","version":"v2"}}]}}`
 
 ### Build and deploy image to minikube ###
 - Ensure istio-system namespace is running on cluster
