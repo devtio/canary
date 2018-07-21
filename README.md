@@ -19,8 +19,14 @@ It is based off a JSON example web service https://gowebexamples.com/json/
 - Give permissions `kubectl create clusterrolebinding cluster-system-anonymous --clusterrole=cluster-admin --user=system:anonymous`
 - Run the [devtio/dummy project](https://github.com/devtio/dummy) to create the dummy namespace with example resources i.e. `kubectl apply -f samples/dummy/setup.yaml`
 - Run canary locally `go run server.go`
+
+#### GET Releases Test
 - `curl -s http://localhost:8080/releases/dummy` to test the GET releases method
 - The output should look something like this: `{"release1":{"id":"release1","name":"release1","gateway":{"hosts":["dummy.xx.xxx.xxx.xxx.nip.io"]},"apps":[{"hosts":["a"],"labels":{"app":"a","version":"v2"}},{"hosts":["b"],"labels":{"app":"b","version":"v2"}}]}}`
+
+#### GET TrafficSegments Test
+- `curl -s http://localhost:8080/traffic-segments/dummy` to test the GET releases method
+- The output should look something like this `[{"id":"release1","name":"release1","match":{"headers":{"x-client-id":{"exact":"fancy"}}}}]`
 
 ### Build and deploy image to minikube ###
 - Ensure istio-system namespace is running on cluster
