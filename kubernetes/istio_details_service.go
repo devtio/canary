@@ -84,6 +84,24 @@ func (in *IstioClient) CreateVirtualService(namespace string, virtualServiceToBe
 	return virtualService.DeepCopyIstioObject(), nil
 }
 
+// PutVirtualService modifies a virtual service
+func (in *IstioClient) PutVirtualService(namespace string, virtualServiceToBeCreated IstioObject) (IstioObject, error) {
+	meta := virtualServiceToBeCreated.GetObjectMeta()
+	name := meta.GetName()
+	result, err := in.istioNetworkingApi.Put().Namespace(namespace).Resource(virtualServices).Body(virtualServiceToBeCreated).Name(name).Do().Get()
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	log.Error("called namespace and no error")
+	virtualService, ok := result.(*VirtualService)
+	if !ok {
+		log.Error("no virtual service object returned")
+		return nil, fmt.Errorf("%s doesn't return a VirtualService object", namespace)
+	}
+	return virtualService.DeepCopyIstioObject(), nil
+}
+
 // GetRouteRules returns all RouteRules for a given namespace.
 // If serviceName param is provided it will filter all RouteRules having a destination pointing to particular service.
 // It returns an error on any problem.

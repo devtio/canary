@@ -55,6 +55,7 @@ type IstioClientInterface interface {
 	GetVirtualServices(namespace string, serviceName string) ([]IstioObject, error)
 	GetVirtualService(namespace string, virtualservice string) (IstioObject, error)
 	CreateVirtualService(namespace string, virtualservice IstioObject) (IstioObject, error)
+	PutVirtualService(namespace string, virtualservice IstioObject) (IstioObject, error)
 	GetDestinationRules(namespace string, serviceName string) ([]IstioObject, error)
 	GetDestinationRule(namespace string, destinationrule string) (IstioObject, error)
 	GetIstioRules(namespace string) (*IstioRules, error)

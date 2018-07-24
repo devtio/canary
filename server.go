@@ -223,28 +223,103 @@ func main() {
 		}
 
 		if r.Method == "POST" {
-			// create a Virtual Service from the release
 			fmt.Println("Decoding request body into Release Object")
-			// var release models.Release
-			// json.NewDecoder(r.Body).Decode(&release)
-			// fmt.Println("Decoded release: ", release)
+			var release models.Release
+			json.NewDecoder(r.Body).Decode(&release)
+			fmt.Println("Decoded release: ", release)
 
-			// for _, label := range release.PodLabels {
-			// 	vsd := VirtualServiceDTO{
-			// 		Name:        release.Name + "-" + label["app"],
-			// 		ReleaseName: release.Name,
-			// 		ReleaseID:   release.ID,
-			// 		Host:        label["app"],
-			// 		Subset:      label["version"],
-			// 	}
-			// 	fmt.Println("Attempting to create virtual service ", vsd, namespace)
-			// 	res, err := createVirtualService(*client, vsd, namespace)
-			// 	if err != nil {
-			// 		fmt.Fprintf(w, "Error: ", err.Error())
-			// 	} else {
-			// 		fmt.Fprintf(w, res)
-			// 	}
-			// }
+			// We need to modify the existing gateway virtualservice
+			// So for every http route in the existing virtualservice, if the destination host service has a version defined in our release object, then we change the subset to equal that version?
+			// and append the devtio release header
+
+			// first get virtual services
+			fmt.Println("Calling GET virtual services for namespace ", namespace)
+			virtualServices, err2 := client.GetVirtualServices(namespace, "")
+			if err2 != nil {
+				fmt.Println("Error occurred in getting virtual services", err2)
+				return
+			}
+			fmt.Println("Virtual services retrieved: ", len(virtualServices))
+			// iterate over virtual services
+			for _, vs := range virtualServices {
+				// get metadata
+				meta := vs.GetObjectMeta()
+				labels := meta.GetLabels()
+
+				isManagedByDevtio, isManagedByDevtioPresent := labels["io.devtio.canary/managed"]
+
+				if !isManagedByDevtioPresent || isManagedByDevtio == "false" {
+					fmt.Println("VirtualService is not managed by devtio, skipping...")
+					continue
+				}
+
+				// get the object spec
+				spec := vs.GetSpec()
+				hosts := spec["hosts"].([]interface{})
+				_, gatewaysPresent := spec["gateways"].([]interface{})
+				var hostsStringArray []string
+				for _, host := range hosts {
+					hostsStringArray = append(hostsStringArray, host.(string))
+				}
+				https, httpsPresent := spec["http"].([]interface{})
+				// first get the release label
+				if httpsPresent {
+					appsToAddToGatewayVirtualService := map[string]string{}
+					for _, http := range https {
+						httpMap, isHTTPMap := http.(map[string]interface{})
+						if isHTTPMap {
+							// read route section
+							app := ""
+							routes, routesPresent := httpMap["route"].([]interface{})
+							if routesPresent {
+								for _, route := range routes {
+									routeMap, isRouteMap := route.(map[string]interface{})
+									if isRouteMap {
+										destination, destinationPresent := routeMap["destination"].(map[string]interface{})
+										if destinationPresent {
+											app, _ = destination["host"].(string)
+										}
+									}
+								}
+							}
+							for _, appInRelease := range release.Apps {
+								appInReleaseID, appLabelPresent := appInRelease.Labels["app"]
+								versionInRelease := appInRelease.Labels["version"]
+								if appLabelPresent && appInReleaseID == app {
+									// gateway-bound vs has top level gateways in spec
+									if gatewaysPresent && sameStringSlice(hostsStringArray, release.Gateway.Hosts) {
+										fmt.Println("Need to add http rule for app: ", app, " for gateway-bound virtualservice")
+										appsToAddToGatewayVirtualService[app] = versionInRelease
+									}
+
+									// other virtual services
+								}
+							}
+						}
+					}
+					fmt.Println(appsToAddToGatewayVirtualService)
+					for a, v := range appsToAddToGatewayVirtualService {
+						newHTTPRule := map[string]interface{}{
+							"route": []map[string]interface{}{
+								{
+									"destination": map[string]string{
+										"host":   a,
+										"subset": v,
+									},
+								},
+							},
+						}
+						https = append(https, newHTTPRule)
+					}
+				}
+				spec["http"] = https
+				res, err := putVirtualService(*client, meta, spec, namespace)
+				if err != nil {
+					fmt.Println(w, "Error: ", err.Error())
+				} else {
+					fmt.Println(w, res)
+				}
+			}
 
 		} else if r.Method == "GET" {
 			// first get virtual services
@@ -269,7 +344,7 @@ func main() {
 					continue
 				}
 
-				// get the obeject spec
+				// get the object spec
 				spec := vs.GetSpec()
 				// very long nested structure to get the required fields from the virtual service spec
 				hosts := spec["hosts"].([]interface{})
@@ -375,9 +450,10 @@ func main() {
 	})
 
 	// endpoint to GET and POST releases
-	r.HandleFunc("/traffic-segments/{namespace}", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/traffic-segments/{namespace}/{releaseId}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
+		releaseId, releaseIdPresent := vars["releaseId"]
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		client, err := istioclient.NewClient()
 
@@ -387,7 +463,23 @@ func main() {
 		}
 
 		if r.Method == "POST" {
+			fmt.Println("Decoding request body into Traffic Segment Object")
+
+			// traffic segment must have a 1:1 mapping with a release
+			if !releaseIdPresent {
+				fmt.Println("Missing path param releaseId! Cannot create Traffic Segment.")
+				return
+			}
+
+			var trafficSegment models.TrafficSegment
+			json.NewDecoder(r.Body).Decode(&trafficSegment)
+			fmt.Println("Decoded traffic segment: ", trafficSegment, trafficSegment.Match.Headers, "releaseId=", releaseId)
+
+			// we look for gateway-bound virtualservices that append the devtio: releaseId header.. and either add a Match Header if none exists,
+			// or copy the rule and change the Match Header if it exists and is different
+
 			// todo
+
 		} else if r.Method == "GET" {
 			trafficSegments := []models.TrafficSegment{}
 			// first get gateways
@@ -591,6 +683,31 @@ func sameStringSlice(x, y []string) bool {
 	return false
 }
 
+func putVirtualService(client istioclient.IstioClient, meta meta_v1.ObjectMeta, spec map[string]interface{}, namespace string) (string, error) {
+	result := "Error"
+	virtualService := (&istioclient.VirtualService{
+		ObjectMeta: meta,
+		Spec:       spec,
+	}).DeepCopyIstioObject()
+	var rrErr error
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if _, rrErr := client.PutVirtualService(namespace, virtualService); rrErr == nil {
+			result = "Success"
+			fmt.Println("Error: ", rrErr)
+		}
+	}()
+	wg.Wait()
+	if rrErr != nil {
+		fmt.Println("Error: ", rrErr)
+	} else {
+		fmt.Println("Virtual service modified successfully: ", virtualService)
+	}
+	return result, rrErr
+}
+
 func createVirtualService(client istioclient.IstioClient, vsd VirtualServiceDTO, namespace string) (string, error) {
 	result := "Error"
 	virtualService := (&istioclient.VirtualService{
@@ -634,13 +751,13 @@ func createVirtualService(client istioclient.IstioClient, vsd VirtualServiceDTO,
 		defer wg.Done()
 		if _, rrErr := client.CreateVirtualService(namespace, virtualService); rrErr == nil {
 			result = "Success"
-			fmt.Errorf("Error: ", rrErr)
+			fmt.Println("Error: ", rrErr)
 		}
 	}()
 	wg.Wait()
-	fmt.Errorf("Error: ", rrErr)
+	fmt.Println("Error: ", rrErr)
 	if rrErr != nil {
-		fmt.Errorf("Error: ", rrErr)
+		fmt.Println("Error: ", rrErr)
 	}
 	fmt.Println("Virtual service created: ", vsd.Name, vsd.Host, vsd.ReleaseID, vsd.ReleaseName, namespace)
 	return result, rrErr

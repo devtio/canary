@@ -17,11 +17,3 @@ type App struct {
 }
 
 type Labels map[string]string
-
-// type Release struct {
-// 	ID        string   `json:"id"`
-// 	Name      string   `json:"name"`
-// 	PodLabels []Labels `json:"podLabels"`
-// }
-
-// type Labels map[string]string
