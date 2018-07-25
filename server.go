@@ -265,6 +265,7 @@ func main() {
 				// first get the release label
 				if httpsPresent {
 					appsToAddToGatewayVirtualService := map[string]string{}
+					appsToAddToHostVirtualService := map[string]string{}
 					for _, http := range https {
 						httpMap, isHTTPMap := http.(map[string]interface{})
 						if isHTTPMap {
@@ -292,12 +293,19 @@ func main() {
 										appsToAddToGatewayVirtualService[app] = versionInRelease
 									}
 
-									// other virtual services
+									// other virtual services - create a match rule for each virtualservice for host that is mentioned in release
+									for _, appInHosts := range hostsStringArray {
+										if appInHosts == appInReleaseID {
+											fmt.Println("Need to add match devtio rule for app: ", appInReleaseID, " for virtualservice bound to ", appInReleaseID)
+											appsToAddToHostVirtualService[appInReleaseID] = versionInRelease
+										}
+									}
 								}
 							}
 						}
 					}
-					fmt.Println(appsToAddToGatewayVirtualService)
+					// Now modify the virtual services accordingly
+					// Gateway-bound VS
 					for a, v := range appsToAddToGatewayVirtualService {
 						newHTTPRule := map[string]interface{}{
 							"route": []map[string]interface{}{
@@ -311,6 +319,30 @@ func main() {
 						}
 						https = append(https, newHTTPRule)
 					}
+					// Host-bound VS
+					for a, v := range appsToAddToHostVirtualService {
+						newHTTPRule := map[string]interface{}{
+							"match": []map[string]interface{}{
+								{
+									"headers": map[string]interface{}{
+										"devtio": map[string]string{
+											"exact": release.ID,
+										},
+									},
+								},
+							},
+							"route": []map[string]interface{}{
+								{
+									"destination": map[string]string{
+										"host":   a,
+										"subset": v,
+									},
+								},
+							},
+						}
+						https = append(https, newHTTPRule)
+					}
+
 				}
 				spec["http"] = https
 				res, err := putVirtualService(*client, meta, spec, namespace)
