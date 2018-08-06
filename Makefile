@@ -71,7 +71,7 @@ NAMESPACE ?= canary
 
 # Environment variables set when running the Go compiler.
 GO_BUILD_ENVVARS = \
-	GOOS=linux \
+	GOOS=darwin \
 	GOARCH=amd64 \
 	CGO_ENABLED=0 \
 
@@ -140,3 +140,11 @@ dep-install:
 dep-update:
 	@echo Updating dependencies and storing in vendor directory
 	@glide update --strip-vendor
+
+install:
+	@echo Installing...  env-vars: ${GO_BUILD_ENVVARS}
+	${GO_BUILD_ENVVARS} go install -ldflags "-X main.version=${VERSION} -X main.commitHash=${COMMIT_HASH}"
+
+run:
+	@echo Running...
+	@${GOPATH}/bin/canary -v ${VERBOSE_MODE} -config config.yaml

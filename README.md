@@ -21,7 +21,7 @@ It is based off a JSON example web service https://gowebexamples.com/json/
 - Run canary locally `go run server.go`
 
 #### GET Releases Test
-- `curl -s http://localhost:8080/releases/dummy` to test the GET releases method
+- `curl -vs http://localhost:8080/releases/dummy` to test the GET releases method
 - The output should look something like this: `{"release1":{"id":"release1","name":"release1","gateway":{"hosts":["dummy.xx.xxx.xxx.xxx.nip.io"]},"apps":[{"hosts":["a"],"labels":{"app":"a","version":"v2"}},{"hosts":["b"],"labels":{"app":"b","version":"v2"}}]}}`
 
 #### GET TrafficSegments Test

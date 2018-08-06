@@ -3,7 +3,7 @@ package kubernetes
 import (
 	"fmt"
 
-	"github.com/kiali/kiali/config"
+	"github.com/devtio/canary/config"
 	"k8s.io/api/apps/v1beta1"
 	autoscalingV1 "k8s.io/api/autoscaling/v1"
 	"k8s.io/api/core/v1"
