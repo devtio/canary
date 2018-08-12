@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	kube "k8s.io/client-go/kubernetes"
+	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp" // this is essential otherwise you'll get `{"error":"No Auth Provider found for name \"gcp\""}` error
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 

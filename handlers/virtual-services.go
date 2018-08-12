@@ -14,23 +14,24 @@ import (
 )
 
 func ListVirtualServices(w http.ResponseWriter, r *http.Request) {
+	log.Info("method: ListVirtualServices called")
 	vars := mux.Vars(r)
 	namespace := vars["namespace"]
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	client, err := istioclient.NewClient()
 
 	if err != nil {
+		log.Error("Error occurred at ListVirtualServices while creating new client. Message=", err.Error())
 		RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	virtualServices, err2 := client.GetVirtualServices(namespace, "")
 	if err2 != nil {
-		log.Error(err)
+		log.Error("Error occurred at ListVirtualServices while getting virtual services. Message=", err.Error())
 		RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	log.Info("Virtualservices retrieved: %s", len(virtualServices))
 	RespondWithJSON(w, http.StatusOK, virtualServices)
 
 }
