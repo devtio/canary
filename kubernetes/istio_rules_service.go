@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kiali/kiali/log"
+	"github.com/devtio/canary/log"
 )
 
 // GetIstioRules returns a list of mixer rules for a given namespace.

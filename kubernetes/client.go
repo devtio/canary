@@ -12,11 +12,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	kube "k8s.io/client-go/kubernetes"
+	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp" // this is essential otherwise you'll get `{"error":"No Auth Provider found for name \"gcp\""}` error
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/kiali/kiali/log"
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"github.com/devtio/canary/log"
 )
 
 const (
@@ -79,8 +79,8 @@ var kubeconfigSet = false
 var kubeconfig *string
 
 // ConfigClient return a client with the correct configuration
-// Returns configuration if Kiali is in Cluster when InCluster is true
-// Returns configuration if Kiali is not int Cluster when InCluster is false
+// Returns configuration if Canary is in Cluster when InCluster is true
+// Returns configuration if Canary is not int Cluster when InCluster is false
 // It returns an error on any problem
 func ConfigClient() (*rest.Config, error) {
 

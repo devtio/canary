@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/kiali/kiali/config"
+	"github.com/devtio/canary/config"
 )
 
 func TestFilterByDestination(t *testing.T) {
